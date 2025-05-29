@@ -1,0 +1,94 @@
+Sub CopyRangesToPowerPoint()
+
+    Dim pptApp As Object
+    Dim pptPres As Object
+    Dim pptSlide As Object
+    Dim slideNumbers As Variant
+    Dim namedRanges As Variant
+    Dim i As Integer
+    Dim rng As Range
+    Dim slideIndex As Integer
+    Dim dict As Object
+    Dim ws As Worksheet
+    Dim namedRange As String
+    Dim slideNum As Integer
+    Dim lastRow As Long
+    Dim savePath As String
+    Dim newFileName As String
+    
+    ' Set reference to the Excel sheet that holds the named ranges and slide numbers
+    Set ws = ThisWorkbook.Sheets("Sheet1")  ' Change to your sheet name
+    
+    ' Find the last row with data in column A (named ranges) and B (slide numbers)
+    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+    
+    ' Read named ranges and slide numbers into arrays, dynamically based on the last row
+    namedRanges = ws.Range("A2:A" & lastRow).Value
+    slideNumbers = ws.Range("B2:B" & lastRow).Value
+    
+    ' Create a dictionary to map named ranges to slide numbers
+    Set dict = CreateObject("Scripting.Dictionary")
+    For i = 1 To UBound(namedRanges, 1)
+        ' Only add non-empty named ranges
+        If namedRanges(i, 1) <> "" Then
+            dict.Add namedRanges(i, 1), slideNumbers(i, 1)
+        End If
+    Next i
+    
+    ' Initialize PowerPoint
+    On Error Resume Next
+    Set pptApp = GetObject(, "PowerPoint.Application") ' Check if PowerPoint is running
+    If pptApp Is Nothing Then
+        Set pptApp = CreateObject("PowerPoint.Application") ' Start PowerPoint if it's not running
+    End If
+    On Error GoTo 0
+    
+    pptApp.Visible = True  ' Make PowerPoint visible
+    
+    ' Open the existing PowerPoint presentation (replace with your file path)
+    ' Assuming the presentation is opened via SharePoint, you might already have its path.
+    savePath = "C:\Path\To\Your\Presentation.pptx"  ' Replace with the correct SharePoint path
+    
+    ' Set the new file name (copy version)
+    newFileName = Replace(savePath, ".pptx", "_vX.pptx")  ' Add version to the file name (e.g., "_vX")
+    
+    ' Save the current presentation as a copy before making changes
+    Set pptPres = pptApp.Presentations.Open(savePath)
+    pptPres.SaveAs newFileName
+    
+    ' Loop through each named range and slide number pair in the dictionary
+    For Each namedRange In dict.Keys
+        ' Get the corresponding slide number
+        slideNum = dict(namedRange)
+        
+        ' Get the range to copy from the Excel workbook
+        Set rng = ThisWorkbook.Names(namedRange).RefersToRange
+        
+        ' Get the corresponding slide in the PowerPoint presentation
+        Set pptSlide = pptPres.Slides(slideNum)
+        
+        ' Clear the existing contents of the slide
+        pptSlide.Shapes.SelectAll
+        pptSlide.Shapes.Range.Delete
+        
+        ' Copy the range from Excel
+        rng.Copy
+        
+        ' Paste into the PowerPoint slide at the top-left corner
+        pptSlide.Shapes.PasteSpecial DataType:=2 ' Paste with existing formatting (2 = Text)
+        
+        ' Ensure the pasted content is positioned at the top-left corner
+        pptSlide.Shapes(pptSlide.Shapes.Count).Left = 0
+        pptSlide.Shapes(pptSlide.Shapes.Count).Top = 0
+    Next namedRange
+    
+    ' Release objects
+    Set pptSlide = Nothing
+    Set pptPres = Nothing
+    Set pptApp = Nothing
+    Set dict = Nothing
+    Set ws = Nothing
+    
+    MsgBox "Ranges copied and pasted into PowerPoint slides successfully! The file has been saved as a new copy: " & newFileName
+    
+End Sub
